@@ -5,9 +5,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Compilaciones y artefactos de distribución (Mantiene ignorada la carpeta release)
+# Compilaciones y artefactos de distribución (Binarios a publicar en GitHub Releases)
 dist/
 release/
+*.exe
 *.app
 *.dmg
 *.deb

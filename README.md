@@ -17,8 +17,9 @@
 
 ## 🚀 Inicio Rápido
 
-### Ejecutable Autónomo .EXE (Recomendado para Usuarios)
-Descarga o abre el archivo **`Minecraft RCON Studio.exe`** en la carpeta principal. Es un ejecutable autónomo y portable que no necesita Node.js ni instalación.
+### 📦 Descarga para Windows (.EXE Portable)
+Descarga la última versión de **`Minecraft RCON Studio.exe`** directamente desde los [Lanzamientos Oficiales (GitHub Releases)](https://github.com/rolea82/minecraft-rcon-studio/releases).
+Es un ejecutable autónomo y portable que no necesita instalación ni Node.js. Solo descárgalo y haz doble clic.
 
 ### Para Desarrolladores (Desde Código Fuente)
 ```bash
