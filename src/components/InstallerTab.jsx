@@ -31,6 +31,8 @@ export default function InstallerTab({ onConnectToServer }) {
 
   // Configuration form fields
   const [folderName, setFolderName] = useState('');
+  const [baseDir, setBaseDir] = useState('');
+  const [customPath, setCustomPath] = useState('');
   const [rconPassword, setRconPassword] = useState('1234');
   const [rconPort, setRconPort] = useState(25575);
   const [serverPort, setServerPort] = useState(25565);
@@ -54,6 +56,12 @@ export default function InstallerTab({ onConnectToServer }) {
     fetchVersions();
     refreshLocalServers();
 
+    if (window.electronAPI?.getBaseDir) {
+      window.electronAPI.getBaseDir().then((dir) => {
+        if (dir) setBaseDir(dir);
+      });
+    }
+
     if (window.electronAPI?.onDownloadProgress) {
       const cleanup = window.electronAPI.onDownloadProgress((data) => {
         setProgressData(data);
@@ -61,6 +69,15 @@ export default function InstallerTab({ onConnectToServer }) {
       return cleanup;
     }
   }, []);
+
+  const handleBrowseFolder = async () => {
+    if (window.electronAPI?.selectFolder) {
+      const selected = await window.electronAPI.selectFolder();
+      if (selected) {
+        setCustomPath(selected);
+      }
+    }
+  };
 
   const fetchVersions = async () => {
     setIsLoadingVersions(true);
@@ -129,6 +146,7 @@ export default function InstallerTab({ onConnectToServer }) {
           versionId: selectedVersion.id,
           versionUrl: selectedVersion.url,
           folderName,
+          customInstallPath: customPath || baseDir || null,
           rconPassword,
           rconPort: Number(rconPort),
           serverPort: Number(serverPort),
@@ -296,10 +314,19 @@ export default function InstallerTab({ onConnectToServer }) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Folder name */}
                 <div className="space-y-1">
-                  <span className="text-[11px] text-zinc-300 font-medium flex items-center gap-1">
-                    <FolderPlus className="w-3.5 h-3.5 text-emerald-400" />
-                    Nombre de la Carpeta de Destino:
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-zinc-300 font-medium flex items-center gap-1">
+                      <FolderPlus className="w-3.5 h-3.5 text-emerald-400" />
+                      Nombre de la Carpeta de Destino:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleBrowseFolder}
+                      className="text-[10px] text-emerald-400 hover:text-emerald-300 underline flex items-center gap-1"
+                    >
+                      <FolderOpen className="w-3 h-3" /> Cambiar ubicación...
+                    </button>
+                  </div>
                   <input
                     type="text"
                     value={folderName}
@@ -308,7 +335,9 @@ export default function InstallerTab({ onConnectToServer }) {
                     placeholder="servidor_1.21.4"
                     className="w-full bg-zinc-900 border border-mc-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
                   />
-                  <span className="text-[10px] text-zinc-500">Se creará dentro de tu proyecto.</span>
+                  <div className="text-[10px] text-zinc-400 truncate font-mono" title={(customPath || baseDir || '') + '\\' + folderName}>
+                    Ruta: <span className="text-zinc-300">{(customPath || baseDir || '...')}\{folderName}</span>
+                  </div>
                 </div>
 
                 {/* RCON Password */}

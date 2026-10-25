@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Version 2: Official Server Installer & Manager
   getMinecraftVersions: () => ipcRenderer.invoke('installer:getVersions'),
+  getBaseDir: () => ipcRenderer.invoke('installer:getBaseDir'),
+  selectFolder: () => ipcRenderer.invoke('installer:selectFolder'),
   downloadAndSetupServer: (options) => ipcRenderer.invoke('installer:downloadAndSetup', options),
   openServerFolder: (folderPath) => ipcRenderer.invoke('installer:openFolder', folderPath),
   launchServer: (folderPath) => ipcRenderer.invoke('installer:launchServer', folderPath),

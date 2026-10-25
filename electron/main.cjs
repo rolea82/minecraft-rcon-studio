@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
@@ -236,6 +236,10 @@ function handleSimulatedCommand(rawCmd) {
 // Version 2: Helpers for Mojang Manifest, Downloads & Server Setup
 // -------------------------------------------------------------
 function getRootWorkspaceDir() {
+  // If running as a portable executable built with electron-builder on Windows:
+  if (process.env.PORTABLE_EXECUTABLE_DIR) {
+    return process.env.PORTABLE_EXECUTABLE_DIR;
+  }
   if (app.isPackaged) {
     return path.dirname(process.execPath);
   }
@@ -576,6 +580,7 @@ ipcMain.handle('installer:downloadAndSetup', async (event, options) => {
     versionId,
     versionUrl,
     folderName = `servidor_${versionId}`,
+    customInstallPath = null,
     rconPassword = '1234',
     rconPort = 25575,
     serverPort = 25565,
@@ -584,7 +589,10 @@ ipcMain.handle('installer:downloadAndSetup', async (event, options) => {
     optimizeProperties = true,
   } = options;
 
-  const baseDir = getRootWorkspaceDir();
+  const baseDir = (customInstallPath && fs.existsSync(customInstallPath))
+    ? path.resolve(customInstallPath)
+    : getRootWorkspaceDir();
+
   // Security: sanitize folder name to prevent path traversal
   const cleanFolder = sanitizeFolderName(folderName || `servidor_${versionId}`);
   const targetDir = path.join(baseDir, cleanFolder);
@@ -805,6 +813,25 @@ ipcMain.handle('installer:listLocalServers', async () => {
   }
 
   return servers;
+});
+
+ipcMain.handle('installer:getBaseDir', () => getRootWorkspaceDir());
+
+ipcMain.handle('installer:selectFolder', async () => {
+  try {
+    const defaultDir = getRootWorkspaceDir();
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Seleccionar carpeta donde instalar el servidor',
+      defaultPath: defaultDir,
+    });
+    if (!result.canceled && result.filePaths.length > 0) {
+      return result.filePaths[0];
+    }
+  } catch (err) {
+    console.error('Error in selectFolder dialog:', err);
+  }
+  return null;
 });
 
 ipcMain.handle('app:getVersion', () => '2.0.0');
