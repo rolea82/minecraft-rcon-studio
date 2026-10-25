@@ -2,12 +2,37 @@ const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
+const net = require('net');
 const { spawn } = require('child_process');
 const { Rcon } = require('rcon-client');
 
 let mainWindow = null;
 let currentRcon = null;
 let pingInterval = null;
+
+// Track active running server processes: normalized folderPath -> childProcess
+const activeServers = new Map();
+
+function isPortInUse(port, host = '127.0.0.1', timeoutMs = 400) {
+  return new Promise((resolve) => {
+    if (!port || port <= 0 || port > 65535) return resolve(false);
+    const client = new net.Socket();
+    client.setTimeout(timeoutMs);
+    client.once('connect', () => {
+      client.destroy();
+      resolve(true);
+    });
+    client.once('timeout', () => {
+      client.destroy();
+      resolve(false);
+    });
+    client.once('error', () => {
+      client.destroy();
+      resolve(false);
+    });
+    client.connect(port, host);
+  });
+}
 
 let connectionState = {
   connected: false,
@@ -587,6 +612,7 @@ ipcMain.handle('installer:downloadAndSetup', async (event, options) => {
     ramGb = 4,
     acceptEula = true,
     optimizeProperties = true,
+    onlineMode = true,
   } = options;
 
   const baseDir = (customInstallPath && fs.existsSync(customInstallPath))
@@ -667,6 +693,7 @@ enable-rcon=true
 rcon.port=${rconPort}
 rcon.password=${rconPassword}
 server-port=${serverPort}
+online-mode=${onlineMode !== false}
 broadcast-rcon-to-ops=false
 motd=Servidor Minecraft ${versionId}
 `;
@@ -716,6 +743,7 @@ pause >nul
       rconPassword,
       rconPort,
       serverPort,
+      onlineMode: onlineMode !== false,
     };
   } catch (error) {
     console.error('Error in installer:downloadAndSetup:', error);
@@ -748,17 +776,36 @@ ipcMain.handle('installer:launchServer', async (event, folderPath) => {
       return { success: false, error: 'Acceso no permitido: Ruta no autorizada.' };
     }
 
+    const normPath = path.resolve(folderPath);
+    if (activeServers.has(normPath)) {
+      return { success: false, error: 'El servidor ya se encuentra iniciado y en ejecución.' };
+    }
+
     const batPath = path.join(folderPath, 'start.bat');
     if (!fs.existsSync(batPath)) {
       return { success: false, error: 'No se encontró start.bat en la carpeta del servidor.' };
     }
 
-    // Launch in visible CMD window
-    spawn('cmd.exe', ['/c', 'start', 'start.bat'], {
+    // Launch in visible CMD window with /wait to track lifetime
+    const winTitle = `Minecraft Server - ${path.basename(folderPath)}`;
+    const child = spawn('cmd.exe', ['/c', 'start', winTitle, '/wait', 'start.bat'], {
       cwd: folderPath,
-      detached: true,
       stdio: 'ignore',
     });
+
+    activeServers.set(normPath, child);
+
+    child.on('exit', () => {
+      activeServers.delete(normPath);
+      mainWindow?.webContents.send('installer:serverStatusChanged', { folderPath: normPath, isRunning: false });
+    });
+
+    child.on('error', () => {
+      activeServers.delete(normPath);
+      mainWindow?.webContents.send('installer:serverStatusChanged', { folderPath: normPath, isRunning: false });
+    });
+
+    mainWindow?.webContents.send('installer:serverStatusChanged', { folderPath: normPath, isRunning: true });
 
     return { success: true };
   } catch (e) {
@@ -772,7 +819,9 @@ ipcMain.handle('installer:listLocalServers', async () => {
   const servers = [];
 
   try {
+    if (!fs.existsSync(baseDir)) return servers;
     const entries = fs.readdirSync(baseDir, { withFileTypes: true });
+
     for (const entry of entries) {
       if (entry.isDirectory()) {
         const dirPath = path.join(baseDir, entry.name);
@@ -785,6 +834,7 @@ ipcMain.handle('installer:listLocalServers', async () => {
           let rconPort = 25575;
           let rconPassword = '';
           let serverPort = 25565;
+          let onlineMode = true;
 
           try {
             const lines = fs.readFileSync(propsPath, 'utf8').split('\n');
@@ -794,8 +844,17 @@ ipcMain.handle('installer:listLocalServers', async () => {
               if (trimmed.startsWith('rcon.port=')) rconPort = parseInt(trimmed.split('=')[1]?.trim(), 10) || 25575;
               if (trimmed.startsWith('rcon.password=')) rconPassword = trimmed.split('=')[1]?.trim() || '';
               if (trimmed.startsWith('server-port=')) serverPort = parseInt(trimmed.split('=')[1]?.trim(), 10) || 25565;
+              if (trimmed.startsWith('online-mode=')) onlineMode = trimmed.split('=')[1]?.trim() !== 'false';
             }
           } catch (_) {}
+
+          const normPath = path.resolve(dirPath);
+          let isRunning = activeServers.has(normPath);
+          if (!isRunning && (serverPort || rconPort)) {
+            const serverPortBusy = serverPort ? await isPortInUse(serverPort) : false;
+            const rconPortBusy = rconPort ? await isPortInUse(rconPort) : false;
+            isRunning = serverPortBusy || rconPortBusy;
+          }
 
           servers.push({
             name: entry.name,
@@ -804,6 +863,8 @@ ipcMain.handle('installer:listLocalServers', async () => {
             rconPort,
             rconPassword,
             serverPort,
+            onlineMode,
+            isRunning,
           });
         }
       }
@@ -813,6 +874,39 @@ ipcMain.handle('installer:listLocalServers', async () => {
   }
 
   return servers;
+});
+
+// Toggle online-mode in server.properties for an existing local server
+ipcMain.handle('installer:toggleOnlineMode', async (event, folderPath) => {
+  try {
+    const baseDir = getRootWorkspaceDir();
+    if (!folderPath || !fs.existsSync(folderPath) || !isPathInsideBaseDir(folderPath, baseDir)) {
+      return { success: false, error: 'Acceso no permitido: Ruta no autorizada.' };
+    }
+
+    const propsPath = path.join(folderPath, 'server.properties');
+    if (!fs.existsSync(propsPath)) {
+      return { success: false, error: 'No se encontró server.properties en la carpeta del servidor.' };
+    }
+
+    let content = fs.readFileSync(propsPath, 'utf8');
+    let currentOnline = true;
+    if (/online-mode\s*=\s*false/i.test(content)) {
+      currentOnline = false;
+    }
+    const newOnline = !currentOnline;
+
+    if (/online-mode\s*=/i.test(content)) {
+      content = content.replace(/online-mode\s*=\s*(true|false)/gi, `online-mode=${newOnline}`);
+    } else {
+      content += `\nonline-mode=${newOnline}\n`;
+    }
+
+    fs.writeFileSync(propsPath, content, 'utf8');
+    return { success: true, onlineMode: newOnline };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 });
 
 ipcMain.handle('installer:getBaseDir', () => getRootWorkspaceDir());

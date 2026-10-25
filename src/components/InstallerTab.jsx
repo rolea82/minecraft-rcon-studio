@@ -39,6 +39,7 @@ export default function InstallerTab({ onConnectToServer }) {
   const [ramGb, setRamGb] = useState(4);
   const [acceptEula, setAcceptEula] = useState(true);
   const [optimizeProperties, setOptimizeProperties] = useState(true);
+  const [allowOfflinePlayers, setAllowOfflinePlayers] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
 
   // Download & creation state
@@ -68,6 +69,27 @@ export default function InstallerTab({ onConnectToServer }) {
       });
       return cleanup;
     }
+  }, []);
+
+  // Listen to server status changes and poll periodically
+  useEffect(() => {
+    let cleanupStatus = null;
+    if (window.electronAPI?.onServerStatusChanged) {
+      cleanupStatus = window.electronAPI.onServerStatusChanged(({ folderPath, isRunning }) => {
+        setLocalServers((prev) =>
+          prev.map((s) => (s.path === folderPath ? { ...s, isRunning } : s))
+        );
+      });
+    }
+
+    const interval = setInterval(() => {
+      refreshLocalServers(false);
+    }, 4000);
+
+    return () => {
+      if (cleanupStatus) cleanupStatus();
+      clearInterval(interval);
+    };
   }, []);
 
   const handleBrowseFolder = async () => {
@@ -114,14 +136,27 @@ export default function InstallerTab({ onConnectToServer }) {
     }
   };
 
-  const refreshLocalServers = async () => {
+  const refreshLocalServers = async (showLoading = true) => {
     if (window.electronAPI?.listLocalServers) {
-      setIsLoadingServers(true);
+      if (showLoading) setIsLoadingServers(true);
       try {
         const list = await window.electronAPI.listLocalServers();
         setLocalServers(list || []);
+      } catch (err) {
+        console.error('Error refreshing local servers:', err);
       } finally {
-        setIsLoadingServers(false);
+        if (showLoading) setIsLoadingServers(false);
+      }
+    }
+  };
+
+  const handleToggleOnlineMode = async (folderPath) => {
+    if (window.electronAPI?.toggleOnlineMode) {
+      const res = await window.electronAPI.toggleOnlineMode(folderPath);
+      if (res.success) {
+        setLocalServers((prev) =>
+          prev.map((s) => (s.path === folderPath ? { ...s, onlineMode: res.onlineMode } : s))
+        );
       }
     }
   };
@@ -153,11 +188,12 @@ export default function InstallerTab({ onConnectToServer }) {
           ramGb: Number(ramGb),
           acceptEula,
           optimizeProperties,
+          onlineMode: !allowOfflinePlayers,
         });
 
         if (result.success) {
           setInstallResult(result);
-          refreshLocalServers();
+          refreshLocalServers(true);
         } else {
           setInstallResult({ success: false, error: result.error });
         }
@@ -171,6 +207,7 @@ export default function InstallerTab({ onConnectToServer }) {
             versionId: selectedVersion.id,
             rconPassword,
             rconPort,
+            onlineMode: !allowOfflinePlayers,
           });
           setIsInstalling(false);
         }, 1500);
@@ -190,10 +227,18 @@ export default function InstallerTab({ onConnectToServer }) {
   };
 
   const handleLaunchServer = async (folderPath) => {
+    const existing = localServers.find((s) => s.path === folderPath);
+    if (existing?.isRunning) return;
+
     if (window.electronAPI?.launchServer) {
       setLaunchingServer(folderPath);
-      await window.electronAPI.launchServer(folderPath);
-      setTimeout(() => setLaunchingServer(null), 2000);
+      const res = await window.electronAPI.launchServer(folderPath);
+      if (res?.success) {
+        setLocalServers((prev) =>
+          prev.map((s) => (s.path === folderPath ? { ...s, isRunning: true } : s))
+        );
+      }
+      setTimeout(() => setLaunchingServer(null), 1500);
     }
   };
 
@@ -407,30 +452,48 @@ export default function InstallerTab({ onConnectToServer }) {
               </div>
 
               {/* Checkbox Toggles */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                <label className="flex items-center gap-2.5 bg-zinc-900/80 p-3 rounded-xl border border-mc-border cursor-pointer hover:border-zinc-700 transition-colors">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                <label className="flex items-start gap-2.5 bg-zinc-900/80 p-3 rounded-xl border border-mc-border cursor-pointer hover:border-zinc-700 transition-colors">
                   <input
                     type="checkbox"
                     checked={acceptEula}
                     onChange={(e) => setAcceptEula(e.target.checked)}
-                    className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+                    className="w-4 h-4 mt-0.5 accent-emerald-500 rounded cursor-pointer"
                   />
                   <div>
-                    <div className="text-xs font-semibold text-zinc-200">Aceptar EULA (eula=true)</div>
-                    <div className="text-[10px] text-zinc-500">Crea eula.txt para que el servidor inicie directamente.</div>
+                    <div className="text-xs font-semibold text-zinc-200">Aceptar EULA</div>
+                    <div className="text-[10px] text-zinc-500">eula=true para arrancar directo.</div>
                   </div>
                 </label>
 
-                <label className="flex items-center gap-2.5 bg-zinc-900/80 p-3 rounded-xl border border-mc-border cursor-pointer hover:border-zinc-700 transition-colors">
+                <label className="flex items-start gap-2.5 bg-zinc-900/80 p-3 rounded-xl border border-mc-border cursor-pointer hover:border-zinc-700 transition-colors">
                   <input
                     type="checkbox"
                     checked={optimizeProperties}
                     onChange={(e) => setOptimizeProperties(e.target.checked)}
-                    className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
+                    className="w-4 h-4 mt-0.5 accent-emerald-500 rounded cursor-pointer"
                   />
                   <div>
-                    <div className="text-xs font-semibold text-zinc-200">Optimizaciones Anti-Lag</div>
-                    <div className="text-[10px] text-zinc-500">Configura sim-distance=5 y flags óptimos.</div>
+                    <div className="text-xs font-semibold text-zinc-200">Anti-Lag Óptimo</div>
+                    <div className="text-[10px] text-zinc-500">sim-distance=5 y flags anti-lag.</div>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-2.5 bg-zinc-900/80 p-3 rounded-xl border border-mc-border cursor-pointer hover:border-zinc-700 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={allowOfflinePlayers}
+                    onChange={(e) => setAllowOfflinePlayers(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 accent-emerald-500 rounded cursor-pointer"
+                  />
+                  <div>
+                    <div className="text-xs font-semibold text-zinc-200 flex items-center gap-1">
+                      Modo No-Premium
+                      <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+                        Offline
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-zinc-500">online-mode=false para clientes no licenciados.</div>
                   </div>
                 </label>
               </div>
@@ -493,18 +556,40 @@ export default function InstallerTab({ onConnectToServer }) {
                     </div>
                     <p className="text-xs text-zinc-300">
                       Ubicación: <code className="text-emerald-300 font-mono font-semibold">{installResult.folderName}</code>
-                      {' '}| RCON activado en puerto <code className="text-emerald-300 font-mono">{installResult.rconPort}</code> con contraseña <code className="text-emerald-300 font-mono">{installResult.rconPassword}</code>.
+                      {' '}| RCON: <code className="text-emerald-300 font-mono">{installResult.rconPort}</code>
+                      {' '}| Modo: <span className="font-semibold text-emerald-300">{installResult.onlineMode ? 'Premium (Online)' : 'No-Premium (Offline)'}</span>.
                     </p>
 
                     <div className="flex flex-wrap items-center gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => handleLaunchServer(installResult.folderPath)}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition-all"
-                      >
-                        <Play className="w-3.5 h-3.5 fill-current" />
-                        Iniciar Servidor Ahora
-                      </button>
+                      {(() => {
+                        const isThisRunning = localServers.find((s) => s.path === installResult.folderPath)?.isRunning;
+                        return (
+                          <button
+                            type="button"
+                            disabled={isThisRunning || launchingServer === installResult.folderPath}
+                            onClick={() => handleLaunchServer(installResult.folderPath)}
+                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold shadow transition-all ${
+                              isThisRunning
+                                ? 'bg-zinc-800 text-emerald-400 border border-emerald-500/30 cursor-not-allowed opacity-90'
+                                : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                            }`}
+                          >
+                            {isThisRunning ? (
+                              <>
+                                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                Servidor en Ejecución
+                              </>
+                            ) : launchingServer === installResult.folderPath ? (
+                              'Iniciando...'
+                            ) : (
+                              <>
+                                <Play className="w-3.5 h-3.5 fill-current" />
+                                Iniciar Servidor Ahora
+                              </>
+                            )}
+                          </button>
+                        );
+                      })()}
 
                       <button
                         type="button"
@@ -552,7 +637,7 @@ export default function InstallerTab({ onConnectToServer }) {
               </div>
 
               <button
-                onClick={refreshLocalServers}
+                onClick={() => refreshLocalServers(true)}
                 disabled={isLoadingServers}
                 className="p-1.5 rounded-lg text-zinc-400 hover:text-white bg-zinc-900 border border-mc-border hover:border-zinc-700 transition-colors"
                 title="Actualizar lista de servidores"
@@ -575,7 +660,11 @@ export default function InstallerTab({ onConnectToServer }) {
                     <div className="flex items-start justify-between">
                       <div>
                         <div className="font-bold text-white text-xs flex items-center gap-1.5">
-                          <FolderOpen className="w-3.5 h-3.5 text-emerald-400" />
+                          {srv.isRunning ? (
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="En ejecución" />
+                          ) : (
+                            <FolderOpen className="w-3.5 h-3.5 text-emerald-400" />
+                          )}
                           {srv.name}
                         </div>
                         <div className="text-[10px] text-zinc-400 mt-0.5 font-mono">
@@ -583,6 +672,26 @@ export default function InstallerTab({ onConnectToServer }) {
                           <span className={srv.rconEnabled ? 'text-emerald-400 font-semibold' : 'text-red-400 font-semibold'}>
                             {srv.rconEnabled ? 'RCON Activo' : 'RCON Inactivo'}
                           </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleOnlineMode(srv.path)}
+                            title="Haz clic para cambiar entre modo Online (Premium) y Offline (No-Premium)"
+                            className={`text-[10px] px-2 py-0.5 rounded border font-medium transition-all ${
+                              srv.onlineMode === false
+                                ? 'bg-amber-950/40 text-amber-300 border-amber-500/30 hover:bg-amber-900/50'
+                                : 'bg-blue-950/40 text-blue-300 border-blue-500/30 hover:bg-blue-900/50'
+                            }`}
+                          >
+                            {srv.onlineMode === false ? '🔓 No-Premium (Offline)' : '🔒 Premium (Online)'}
+                          </button>
+                          {srv.isRunning && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-500/30 font-semibold flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                              Activo
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -598,11 +707,27 @@ export default function InstallerTab({ onConnectToServer }) {
                     <div className="flex items-center gap-2 pt-1 border-t border-zinc-800/80">
                       <button
                         onClick={() => handleLaunchServer(srv.path)}
-                        disabled={launchingServer === srv.path}
-                        className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] transition-colors shadow"
+                        disabled={srv.isRunning || launchingServer === srv.path}
+                        className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg font-semibold text-[11px] transition-colors shadow ${
+                          srv.isRunning
+                            ? 'bg-zinc-800 text-emerald-400 border border-emerald-500/30 cursor-not-allowed opacity-90'
+                            : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                        }`}
+                        title={srv.isRunning ? 'El servidor ya está ejecutándose' : 'Iniciar este servidor'}
                       >
-                        <Play className="w-3 h-3 fill-current" />
-                        {launchingServer === srv.path ? 'Iniciando...' : 'Iniciar Servidor'}
+                        {srv.isRunning ? (
+                          <>
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                            En Ejecución
+                          </>
+                        ) : launchingServer === srv.path ? (
+                          'Iniciando...'
+                        ) : (
+                          <>
+                            <Play className="w-3 h-3 fill-current" />
+                            Iniciar Servidor
+                          </>
+                        )}
                       </button>
 
                       <button

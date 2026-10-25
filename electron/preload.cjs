@@ -22,11 +22,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openServerFolder: (folderPath) => ipcRenderer.invoke('installer:openFolder', folderPath),
   launchServer: (folderPath) => ipcRenderer.invoke('installer:launchServer', folderPath),
   listLocalServers: () => ipcRenderer.invoke('installer:listLocalServers'),
+  toggleOnlineMode: (folderPath) => ipcRenderer.invoke('installer:toggleOnlineMode', folderPath),
   
   onDownloadProgress: (callback) => {
     const subscription = (event, data) => callback(data);
     ipcRenderer.on('installer:progress', subscription);
     return () => ipcRenderer.removeListener('installer:progress', subscription);
+  },
+
+  onServerStatusChanged: (callback) => {
+    const subscription = (event, data) => callback(data);
+    ipcRenderer.on('installer:serverStatusChanged', subscription);
+    return () => ipcRenderer.removeListener('installer:serverStatusChanged', subscription);
   },
   
   // Window controls
