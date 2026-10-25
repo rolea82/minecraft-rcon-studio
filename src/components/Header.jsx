@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Terminal, 
   Sliders, 
@@ -13,8 +13,11 @@ import {
   AlertCircle,
   HelpCircle,
   RefreshCw,
-  Download
+  Download,
+  Settings,
+  Minimize2
 } from 'lucide-react';
+import SettingsModal from './SettingsModal';
 
 export default function Header({ 
   activeTab, 
@@ -25,6 +28,14 @@ export default function Header({
   onToggleSimulated,
   onOpenQuickGuide
 }) {
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  const handleMinimizeToTray = () => {
+    if (window.electronAPI?.minimizeToTray) {
+      window.electronAPI.minimizeToTray();
+    }
+  };
+
   const tabs = [
     { id: 'installer', label: 'Descargar Servidor', icon: Download, isNew: true },
     { id: 'console', label: 'Consola', icon: Terminal },
@@ -112,6 +123,22 @@ export default function Header({
           )}
 
           <button
+            onClick={handleMinimizeToTray}
+            className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
+            title="Minimizar a la bandeja del sistema (System Tray)"
+          >
+            <Minimize2 className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
+            title="Configuración de la aplicación (Bandeja y comportamiento al cerrar)"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+
+          <button
             onClick={onOpenQuickGuide}
             className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
             title="Ayuda y Configuración de RCON"
@@ -120,6 +147,11 @@ export default function Header({
           </button>
         </div>
       </div>
+
+      <SettingsModal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)} 
+      />
 
       {/* Navigation Tabs */}
       <div className="flex items-center px-6 gap-2 overflow-x-auto">

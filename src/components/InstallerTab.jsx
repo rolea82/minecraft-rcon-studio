@@ -21,7 +21,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 
-export default function InstallerTab({ onConnectToServer }) {
+export default function InstallerTab({ onConnectToServer, onNavigateToConsole }) {
   const [versions, setVersions] = useState([]);
   const [latestRelease, setLatestRelease] = useState('1.21.4');
   const [selectedVersion, setSelectedVersion] = useState(null);
@@ -239,6 +239,13 @@ export default function InstallerTab({ onConnectToServer }) {
         );
       }
       setTimeout(() => setLaunchingServer(null), 1500);
+    }
+  };
+
+  const handleStopServer = async (folderPath) => {
+    if (window.electronAPI?.stopServer) {
+      await window.electronAPI.stopServer(folderPath);
+      refreshLocalServers(true);
     }
   };
 
@@ -564,30 +571,55 @@ export default function InstallerTab({ onConnectToServer }) {
                       {(() => {
                         const isThisRunning = localServers.find((s) => s.path === installResult.folderPath)?.isRunning;
                         return (
-                          <button
-                            type="button"
-                            disabled={isThisRunning || launchingServer === installResult.folderPath}
-                            onClick={() => handleLaunchServer(installResult.folderPath)}
-                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold shadow transition-all ${
-                              isThisRunning
-                                ? 'bg-zinc-800 text-emerald-400 border border-emerald-500/30 cursor-not-allowed opacity-90'
-                                : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                            }`}
-                          >
-                            {isThisRunning ? (
-                              <>
-                                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                                Servidor en Ejecución
-                              </>
-                            ) : launchingServer === installResult.folderPath ? (
-                              'Iniciando...'
-                            ) : (
-                              <>
-                                <Play className="w-3.5 h-3.5 fill-current" />
-                                Iniciar Servidor Ahora
-                              </>
+                          <>
+                            <button
+                              type="button"
+                              disabled={isThisRunning || launchingServer === installResult.folderPath}
+                              onClick={() => handleLaunchServer(installResult.folderPath)}
+                              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold shadow transition-all ${
+                                isThisRunning
+                                  ? 'bg-zinc-800 text-emerald-400 border border-emerald-500/30 cursor-not-allowed opacity-90'
+                                  : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                              }`}
+                            >
+                              {isThisRunning ? (
+                                <>
+                                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                  Servidor en Ejecución
+                                </>
+                              ) : launchingServer === installResult.folderPath ? (
+                                'Iniciando...'
+                              ) : (
+                                <>
+                                  <Play className="w-3.5 h-3.5 fill-current" />
+                                  Iniciar Servidor Ahora
+                                </>
+                              )}
+                            </button>
+
+                            {isThisRunning && onNavigateToConsole && (
+                              <button
+                                type="button"
+                                onClick={onNavigateToConsole}
+                                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition-all shadow"
+                                title="Ver la consola integrada en vivo de este servidor"
+                              >
+                                <span className="font-mono text-xs">&gt;_</span>
+                                Ver Consola
+                              </button>
                             )}
-                          </button>
+
+                            {isThisRunning && (
+                              <button
+                                type="button"
+                                onClick={() => handleStopServer(installResult.folderPath)}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-950/60 hover:bg-red-900/60 text-red-300 border border-red-500/30 text-xs font-bold transition-all"
+                                title="Detener servidor"
+                              >
+                                Detener
+                              </button>
+                            )}
+                          </>
                         );
                       })()}
 
@@ -704,31 +736,45 @@ export default function InstallerTab({ onConnectToServer }) {
                       </button>
                     </div>
 
-                    <div className="flex items-center gap-2 pt-1 border-t border-zinc-800/80">
-                      <button
-                        onClick={() => handleLaunchServer(srv.path)}
-                        disabled={srv.isRunning || launchingServer === srv.path}
-                        className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg font-semibold text-[11px] transition-colors shadow ${
-                          srv.isRunning
-                            ? 'bg-zinc-800 text-emerald-400 border border-emerald-500/30 cursor-not-allowed opacity-90'
-                            : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                        }`}
-                        title={srv.isRunning ? 'El servidor ya está ejecutándose' : 'Iniciar este servidor'}
-                      >
-                        {srv.isRunning ? (
-                          <>
-                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                            En Ejecución
-                          </>
-                        ) : launchingServer === srv.path ? (
-                          'Iniciando...'
-                        ) : (
-                          <>
-                            <Play className="w-3 h-3 fill-current" />
-                            Iniciar Servidor
-                          </>
-                        )}
-                      </button>
+                    <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-zinc-800/80">
+                      {srv.isRunning ? (
+                        <>
+                          {onNavigateToConsole && (
+                            <button
+                              onClick={onNavigateToConsole}
+                              className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] transition-colors shadow"
+                              title="Abrir consola integrada en vivo"
+                            >
+                              <span className="font-mono text-[11px]">&gt;_</span>
+                              Ver Consola
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => handleStopServer(srv.path)}
+                            className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg bg-red-950/60 hover:bg-red-900/60 text-red-300 border border-red-500/30 text-[11px] font-semibold transition-colors"
+                            title="Detener servidor de Minecraft"
+                          >
+                            Detener
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => handleLaunchServer(srv.path)}
+                          disabled={launchingServer === srv.path}
+                          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] transition-colors shadow"
+                          title="Iniciar este servidor"
+                        >
+                          {launchingServer === srv.path ? (
+                            'Iniciando...'
+                          ) : (
+                            <>
+                              <Play className="w-3 h-3 fill-current" />
+                              Iniciar Servidor
+                            </>
+                          )}
+                        </button>
+                      )}
 
                       <button
                         onClick={() => handleConnectDirectly(srv)}

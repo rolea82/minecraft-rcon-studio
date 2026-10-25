@@ -173,6 +173,7 @@ export default function App() {
               handleConnect(serverConfig);
               setActiveTab('console');
             }}
+            onNavigateToConsole={() => setActiveTab('console')}
           />
         )}
 
@@ -182,6 +183,7 @@ export default function App() {
             logs={logs}
             onClearLogs={() => setLogs([])}
             isConnected={connectionStatus.connected}
+            onNavigateToInstaller={() => setActiveTab('installer')}
           />
         )}
 

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
@@ -9,9 +9,104 @@ const { Rcon } = require('rcon-client');
 let mainWindow = null;
 let currentRcon = null;
 let pingInterval = null;
+let tray = null;
+let isQuitting = false;
+let userSettings = { closeAction: 'ask' }; // 'ask' | 'minimize' | 'quit'
 
-// Track active running server processes: normalized folderPath -> childProcess
+// Track active running server processes: normalized folderPath -> { process, folderPath, name, logs }
 const activeServers = new Map();
+
+function getSettingsPath() {
+  return path.join(app.getPath('userData'), 'app-settings.json');
+}
+
+function loadSettings() {
+  try {
+    const p = getSettingsPath();
+    if (fs.existsSync(p)) {
+      userSettings = { ...userSettings, ...JSON.parse(fs.readFileSync(p, 'utf8')) };
+    }
+  } catch (_) {}
+}
+
+function saveSettings(newSettings) {
+  userSettings = { ...userSettings, ...newSettings };
+  try {
+    fs.writeFileSync(getSettingsPath(), JSON.stringify(userSettings, null, 2), 'utf8');
+  } catch (_) {}
+}
+
+function getTrayIcon() {
+  const iconPath = path.join(__dirname, 'tray-icon.png');
+  if (fs.existsSync(iconPath)) {
+    return nativeImage.createFromPath(iconPath);
+  }
+  return nativeImage.createEmpty();
+}
+
+function showMainWindow() {
+  if (!mainWindow) {
+    createWindow();
+    return;
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function updateTrayMenu() {
+  if (!tray) return;
+
+  const runningCount = activeServers.size;
+  const template = [
+    {
+      label: 'Abrir Minecraft RCON Studio',
+      click: () => showMainWindow(),
+    },
+    { type: 'separator' },
+    {
+      label: runningCount > 0 
+        ? `🟢 Servidores activos: ${runningCount}`
+        : '⚪ Ningún servidor en ejecución',
+      enabled: false,
+    },
+  ];
+
+  if (runningCount > 0) {
+    template.push({
+      label: '🛑 Detener todos los servidores',
+      click: () => {
+        for (const [normPath, srv] of activeServers.entries()) {
+          try { srv.process.stdin.write('stop\n'); } catch (_) { srv.process.kill(); }
+        }
+      },
+    });
+  }
+
+  template.push(
+    { type: 'separator' },
+    {
+      label: 'Salir completamente',
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    }
+  );
+
+  tray.setContextMenu(Menu.buildFromTemplate(template));
+}
+
+function createTray() {
+  if (tray) return;
+  tray = new Tray(getTrayIcon());
+  tray.setToolTip('Minecraft RCON Studio & Server Manager');
+  updateTrayMenu();
+
+  tray.on('double-click', () => {
+    showMainWindow();
+  });
+}
 
 function isPortInUse(port, host = '127.0.0.1', timeoutMs = 400) {
   return new Promise((resolve) => {
@@ -437,6 +532,65 @@ function createWindow() {
     mainWindow.show();
   });
 
+  mainWindow.on('close', async (e) => {
+    if (isQuitting) return;
+
+    if (userSettings.closeAction === 'minimize') {
+      e.preventDefault();
+      mainWindow.hide();
+      return;
+    }
+
+    if (userSettings.closeAction === 'quit' && activeServers.size === 0) {
+      isQuitting = true;
+      return;
+    }
+
+    e.preventDefault();
+
+    const runningCount = activeServers.size;
+    let message = '¿Qué deseas hacer al cerrar la aplicación?';
+    let detail = 'Puedes minimizar la aplicación a la bandeja del sistema (junto al reloj) para que no moleste en la barra de tareas, o cerrarla por completo.';
+
+    if (runningCount > 0) {
+      message = `¡Hay ${runningCount} servidor(es) de Minecraft en ejecución!`;
+      detail = 'Si cierras la aplicación por completo, los servidores se apagarán de forma segura. Si la minimizas a la bandeja del sistema, seguirán funcionando en segundo plano.';
+    }
+
+    const { response, checkboxChecked } = await dialog.showMessageBox(mainWindow, {
+      type: runningCount > 0 ? 'warning' : 'question',
+      buttons: ['Minimizar a la Bandeja', 'Cerrar Completamente', 'Cancelar'],
+      defaultId: 0,
+      cancelId: 2,
+      title: 'Minecraft RCON Studio',
+      message,
+      detail,
+      checkboxLabel: 'Recordar mi elección para siempre',
+      checkboxChecked: false,
+      noLink: true,
+    });
+
+    if (response === 0) {
+      // Minimizar a la bandeja
+      if (checkboxChecked) saveSettings({ closeAction: 'minimize' });
+      mainWindow.hide();
+    } else if (response === 1) {
+      // Cerrar completamente
+      if (checkboxChecked) saveSettings({ closeAction: 'quit' });
+      isQuitting = true;
+      for (const [normPath, srv] of activeServers.entries()) {
+        try {
+          srv.process.stdin.write('stop\n');
+        } catch (_) {
+          srv.process.kill();
+        }
+      }
+      setTimeout(() => {
+        app.quit();
+      }, 700);
+    }
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
     disconnectRconInternal();
@@ -768,7 +922,7 @@ ipcMain.handle('installer:openFolder', async (event, folderPath) => {
   }
 });
 
-// Launch server batch file
+// Launch server process with integrated piped console (no external CMD window)
 ipcMain.handle('installer:launchServer', async (event, folderPath) => {
   try {
     const baseDir = getRootWorkspaceDir();
@@ -786,31 +940,116 @@ ipcMain.handle('installer:launchServer', async (event, folderPath) => {
       return { success: false, error: 'No se encontró start.bat en la carpeta del servidor.' };
     }
 
-    // Launch in visible CMD window with /wait to track lifetime
-    const winTitle = `Minecraft Server - ${path.basename(folderPath)}`;
-    const child = spawn('cmd.exe', ['/c', 'start', winTitle, '/wait', 'start.bat'], {
+    // Extract java execution line from start.bat or fallback
+    let execCmd = 'java -Xms4G -Xmx4G -XX:+UseG1GC -jar server.jar nogui';
+    try {
+      const batContent = fs.readFileSync(batPath, 'utf8');
+      const foundJava = batContent.split('\n').find((l) => l.trim().startsWith('java '));
+      if (foundJava) execCmd = foundJava.trim();
+    } catch (_) {}
+
+    // Spawn via cmd.exe without 'start' so all I/O is piped directly into Electron
+    const child = spawn('cmd.exe', ['/c', execCmd], {
       cwd: folderPath,
-      stdio: 'ignore',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
     });
 
-    activeServers.set(normPath, child);
+    const serverEntry = {
+      process: child,
+      folderPath: normPath,
+      name: path.basename(folderPath),
+      logs: [],
+    };
+    activeServers.set(normPath, serverEntry);
+
+    const onData = (data, isError = false) => {
+      const text = data.toString('utf8');
+      const lines = text.split(/\r?\n/).filter(Boolean);
+      for (const line of lines) {
+        serverEntry.logs.push({ text: line, isError, time: Date.now() });
+        if (serverEntry.logs.length > 600) serverEntry.logs.shift();
+      }
+      mainWindow?.webContents.send('server:log', { folderPath: normPath, text, isError });
+    };
+
+    child.stdout.on('data', (d) => onData(d, false));
+    child.stderr.on('data', (d) => onData(d, true));
 
     child.on('exit', () => {
       activeServers.delete(normPath);
       mainWindow?.webContents.send('installer:serverStatusChanged', { folderPath: normPath, isRunning: false });
+      updateTrayMenu();
     });
 
     child.on('error', () => {
       activeServers.delete(normPath);
       mainWindow?.webContents.send('installer:serverStatusChanged', { folderPath: normPath, isRunning: false });
+      updateTrayMenu();
     });
 
     mainWindow?.webContents.send('installer:serverStatusChanged', { folderPath: normPath, isRunning: true });
+    updateTrayMenu();
 
     return { success: true };
   } catch (e) {
     return { success: false, error: e.message };
   }
+});
+
+// Stop running server gracefully via 'stop' command
+ipcMain.handle('installer:stopServer', async (event, folderPath) => {
+  try {
+    const normPath = path.resolve(folderPath);
+    const srv = activeServers.get(normPath);
+    if (!srv || !srv.process) {
+      return { success: false, error: 'El servidor no se encuentra en ejecución.' };
+    }
+
+    try {
+      srv.process.stdin.write('stop\n');
+    } catch (_) {
+      srv.process.kill();
+    }
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// Send stdin command directly to Minecraft server process
+ipcMain.handle('installer:sendServerInput', async (event, { folderPath, command }) => {
+  try {
+    const normPath = path.resolve(folderPath);
+    const srv = activeServers.get(normPath);
+    if (!srv || !srv.process) {
+      return { success: false, error: 'El servidor no está iniciado.' };
+    }
+
+    srv.process.stdin.write(`${command}\n`);
+    const echoLine = `> ${command}`;
+    srv.logs.push({ text: echoLine, isInput: true, time: Date.now() });
+    mainWindow?.webContents.send('server:log', { folderPath: normPath, text: echoLine, isInput: true });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// Get buffered logs of a server
+ipcMain.handle('installer:getServerLogs', async (event, folderPath) => {
+  const normPath = path.resolve(folderPath);
+  const srv = activeServers.get(normPath);
+  return srv ? srv.logs : [];
+});
+
+// Get active running servers list
+ipcMain.handle('installer:getRunningServers', async () => {
+  const list = [];
+  for (const [folderPath, srv] of activeServers.entries()) {
+    list.push({ folderPath, name: srv.name });
+  }
+  return list;
 });
 
 // List local servers in the directory
@@ -929,8 +1168,14 @@ ipcMain.handle('installer:selectFolder', async () => {
 });
 
 ipcMain.handle('app:getVersion', () => '2.0.0');
+ipcMain.handle('app:getSettings', () => ({ ...userSettings }));
+ipcMain.handle('app:saveSettings', (event, s) => {
+  saveSettings(s);
+  return { ...userSettings };
+});
 
 ipcMain.on('window:minimize', () => mainWindow?.minimize());
+ipcMain.on('window:minimizeToTray', () => mainWindow?.hide());
 ipcMain.on('window:maximize', () => {
   if (mainWindow?.isMaximized()) {
     mainWindow.unmaximize();
@@ -941,13 +1186,30 @@ ipcMain.on('window:maximize', () => {
 ipcMain.on('window:close', () => mainWindow?.close());
 
 app.whenReady().then(() => {
+  loadSettings();
   createWindow();
+  createTray();
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    } else {
+      showMainWindow();
+    }
   });
 });
 
+app.on('before-quit', () => {
+  isQuitting = true;
+  for (const [normPath, srv] of activeServers.entries()) {
+    try {
+      srv.process.stdin.write('stop\n');
+    } catch (_) {
+      srv.process.kill();
+    }
+  }
+});
+
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  if (process.platform !== 'darwin' && isQuitting) app.quit();
 });

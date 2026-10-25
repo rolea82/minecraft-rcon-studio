@@ -21,6 +21,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   downloadAndSetupServer: (options) => ipcRenderer.invoke('installer:downloadAndSetup', options),
   openServerFolder: (folderPath) => ipcRenderer.invoke('installer:openFolder', folderPath),
   launchServer: (folderPath) => ipcRenderer.invoke('installer:launchServer', folderPath),
+  stopServer: (folderPath) => ipcRenderer.invoke('installer:stopServer', folderPath),
+  sendServerInput: (data) => ipcRenderer.invoke('installer:sendServerInput', data),
+  getServerLogs: (folderPath) => ipcRenderer.invoke('installer:getServerLogs', folderPath),
+  getRunningServers: () => ipcRenderer.invoke('installer:getRunningServers'),
   listLocalServers: () => ipcRenderer.invoke('installer:listLocalServers'),
   toggleOnlineMode: (folderPath) => ipcRenderer.invoke('installer:toggleOnlineMode', folderPath),
   
@@ -35,12 +39,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('installer:serverStatusChanged', subscription);
     return () => ipcRenderer.removeListener('installer:serverStatusChanged', subscription);
   },
+
+  onServerLog: (callback) => {
+    const subscription = (event, data) => callback(data);
+    ipcRenderer.on('server:log', subscription);
+    return () => ipcRenderer.removeListener('server:log', subscription);
+  },
   
-  // Window controls
+  // Window & Tray controls
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
+  minimizeToTray: () => ipcRenderer.send('window:minimizeToTray'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
   closeWindow: () => ipcRenderer.send('window:close'),
   
-  // App info
+  // App info & settings
   getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
+  getSettings: () => ipcRenderer.invoke('app:getSettings'),
+  saveSettings: (settings) => ipcRenderer.invoke('app:saveSettings', settings),
 });

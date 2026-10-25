@@ -37,7 +37,7 @@ ops.json
 usercache.json
 whitelist.json
 eula.txt
-start.bat
+*.bat
 
 # Variables de entorno y secretos
 .env
