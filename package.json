@@ -9,7 +9,8 @@
     "build": "vite build",
     "dev": "vite",
     "app": "electron .",
-    "dist:exe": "npm run build && electron-builder --win",
+    "dist:exe": "npm run build && electron-builder --win && node scripts/create-zip.cjs",
+    "dist:zip": "node scripts/create-zip.cjs",
     "electron:dev": "cross-env VITE_DEV=true concurrently \"vite\" \"wait-on tcp:5173 && electron .\""
   },
   "keywords": [
