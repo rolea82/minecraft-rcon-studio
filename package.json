@@ -1,0 +1,45 @@
+{
+  "name": "mcrcon-dashboard",
+  "version": "2.0.0",
+  "description": "Panel de control visual, instalador oficial y optimizador para servidores Minecraft mediante RCON",
+  "main": "electron/main.cjs",
+  "type": "module",
+  "scripts": {
+    "start": "electron .",
+    "build": "vite build",
+    "dev": "vite",
+    "app": "electron .",
+    "dist:exe": "npm run build && electron-builder --win",
+    "electron:dev": "cross-env VITE_DEV=true concurrently \"vite\" \"wait-on tcp:5173 && electron .\""
+  },
+  "keywords": [
+    "minecraft",
+    "rcon",
+    "dashboard",
+    "electron",
+    "admin-tool"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.16.0",
+    "rcon-client": "^4.2.5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.0.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^35.0.0",
+    "electron-builder": "^26.18.0",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^4.3.3",
+    "vite": "^6.2.0",
+    "wait-on": "^8.0.2"
+  }
+}

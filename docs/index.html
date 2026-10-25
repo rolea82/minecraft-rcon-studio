@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minecraft RCON Studio - Centro de Ayuda y Documentación</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text y='20' font-size='20'>⛏️</text></svg>">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            mc: {
+              dark: '#0f1115',
+              card: '#161920',
+              border: '#242a36',
+              accent: '#10b981',
+              accentHover: '#059669',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #0f1115; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; }
+    pre { background: #08090c; border: 1px solid #242a36; border-radius: 0.75rem; padding: 1rem; overflow-x: auto; font-family: monospace; }
+    code { font-family: monospace; color: #34d399; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <!-- Navbar -->
+  <header class="sticky top-0 z-50 bg-mc-card/90 backdrop-blur border-b border-mc-border px-6 py-3.5 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-green-700 flex items-center justify-center text-lg shadow-lg">
+        ⛏️
+      </div>
+      <div>
+        <h1 class="font-bold text-base text-white">Minecraft RCON Studio</h1>
+        <p class="text-xs text-zinc-400">Documentación Oficial y Guía de Uso</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3 text-xs">
+      <a href="#quickstart" class="text-zinc-300 hover:text-emerald-400 transition-colors">Inicio Rápido</a>
+      <a href="#rcon-guide" class="text-zinc-300 hover:text-emerald-400 transition-colors">Configurar RCON</a>
+      <a href="#installer-v2" class="text-zinc-300 hover:text-emerald-400 transition-colors">Descargador V2</a>
+      <a href="#security" class="text-zinc-300 hover:text-emerald-400 transition-colors">Seguridad</a>
+      <a href="https://github.com" target="_blank" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition-colors">
+        Ver en GitHub
+      </a>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="py-16 px-6 max-w-5xl mx-auto text-center space-y-4">
+    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+      ✨ Versión 2.0 con Instalador Oficial de Mojang
+    </div>
+    <h2 class="text-3xl sm:text-5xl font-black text-white tracking-tight">
+      Administra tu servidor de Minecraft de forma <span class="text-emerald-400">visual y sin lag</span>
+    </h2>
+    <p class="text-zinc-400 text-sm sm:text-base max-w-2xl mx-auto">
+      Aplicación de escritorio nativa para gestionar reglas de juego, jugadores, mundo, consola en vivo y descargar versiones oficiales con un solo clic.
+    </p>
+  </section>
+
+  <!-- Content Container -->
+  <main class="max-w-5xl mx-auto px-6 space-y-12 pb-24">
+    <!-- Quickstart -->
+    <section id="quickstart" class="bg-mc-card border border-mc-border rounded-2xl p-6 space-y-4">
+      <h3 class="text-xl font-bold text-white flex items-center gap-2">
+        🚀 Inicio Rápido
+      </h3>
+      <p class="text-sm text-zinc-300">
+        La aplicación se distribuye como un archivo ejecutable autónomo (portable) que no necesita instalación de Node.js:
+      </p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+        <div class="bg-zinc-900/60 p-4 rounded-xl border border-mc-border space-y-2">
+          <div class="font-bold text-emerald-400 text-sm">Opción 1: Ejecutable Portátil .EXE</div>
+          <p class="text-xs text-zinc-400">Haz doble clic sobre <code>Minecraft RCON Studio.exe</code> en la carpeta de la aplicación. Se abrirá inmediatamente.</p>
+        </div>
+        <div class="bg-zinc-900/60 p-4 rounded-xl border border-mc-border space-y-2">
+          <div class="font-bold text-emerald-400 text-sm">Opción 2: Desde el Código Fuente</div>
+          <pre class="text-xs"><code>npm install
+npm start</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- RCON Guide -->
+    <section id="rcon-guide" class="bg-mc-card border border-mc-border rounded-2xl p-6 space-y-4">
+      <h3 class="text-xl font-bold text-white flex items-center gap-2">
+        ⚙️ Cómo Configurar RCON en tu Servidor
+      </h3>
+      <p class="text-sm text-zinc-300">
+        Para conectar la interfaz a un servidor existente, asegúrate de tener estas 4 líneas en tu archivo <code>server.properties</code>:
+      </p>
+      <pre><code>enable-rcon=true
+rcon.port=25575
+rcon.password=tu_contraseña_secreta
+broadcast-rcon-to-ops=false</code></pre>
+      <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-300">
+        💡 <strong>Importante:</strong> Reinicia tu servidor tras editar <code>server.properties</code> para que el puerto RCON se abra.
+      </div>
+    </section>
+
+    <!-- Installer V2 -->
+    <section id="installer-v2" class="bg-mc-card border border-mc-border rounded-2xl p-6 space-y-4">
+      <h3 class="text-xl font-bold text-white flex items-center gap-2">
+        📥 Descargador Oficial de Versiones (Nuevo en V2)
+      </h3>
+      <p class="text-sm text-zinc-300">
+        En la pestaña <strong>"Descargar Servidor"</strong> de la aplicación puedes instalar cualquier versión oficial de Mojang con un solo clic:
+      </p>
+      <ul class="list-disc list-inside space-y-1.5 text-xs text-zinc-400">
+        <li><strong>Desplegable de Versiones:</strong> Conectado a Mojang para descargar desde la 1.21.4 hasta versiones clásicas o snapshots.</li>
+        <li><strong>Aceptación Automática del EULA:</strong> Crea <code>eula.txt</code> con <code>eula=true</code>.</li>
+        <li><strong>Configuración Automática:</strong> Activa RCON con la contraseña que tú elijas en la pantalla.</li>
+        <li><strong>Script start.bat:</strong> Genera el archivo de arranque con los GB de RAM seleccionados y flags optimizados de Java.</li>
+        <li><strong>Arranque en 1 Clic:</strong> Pulsa <em>Iniciar Servidor Ahora</em> para abrir la consola de Minecraft de inmediato.</li>
+      </ul>
+    </section>
+
+    <!-- Security -->
+    <section id="security" class="bg-mc-card border border-mc-border rounded-2xl p-6 space-y-4">
+      <h3 class="text-xl font-bold text-white flex items-center gap-2">
+        🛡️ Seguridad y Buenas Prácticas
+      </h3>
+      <div class="space-y-3 text-xs text-zinc-300 leading-relaxed">
+        <p>
+          <strong>Aislamiento y Protección:</strong> La aplicación utiliza aislamiento de contexto en Electron (<code>contextIsolation: true</code>, <code>nodeIntegration: false</code>), validación estricta contra ataques de salto de directorio (<em>Path Traversal</em>) y verificación de certificados SSL oficiales de Mojang.
+        </p>
+        <div class="bg-red-500/10 border border-red-500/20 rounded-xl p-3.5 space-y-1.5 text-red-200">
+          <div class="font-bold flex items-center gap-1.5">
+            ⚠️ Advertencia de Red para Servidores Locales:
+          </div>
+          <p>
+            El protocolo RCON de Minecraft no cifra las comunicaciones por defecto. <strong>NUNCA abras el puerto 25575 en tu router hacia internet público.</strong> Si necesitas acceso fuera de casa, utiliza siempre una VPN privada (como Tailscale o WireGuard) o un túnel SSH seguro.
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="mt-auto border-t border-mc-border/60 py-6 px-6 text-center text-xs text-zinc-500">
+    Minecraft RCON Studio • Software de código abierto bajo Licencia MIT • No afiliado con Mojang o Microsoft.
+  </footer>
+</body>
+</html>
