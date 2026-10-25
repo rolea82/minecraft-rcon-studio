@@ -3,7 +3,7 @@
 <div align="center">
 
 ![Versión](https://img.shields.io/badge/Versi%C3%B3n-2.0.0-emerald?style=for-the-badge&logo=electron)
-![Licencia](https://img.shields.io/badge/Licencia-MIT-blue?style=for-the-badge)
+![Licencia](https://img.shields.io/badge/Licencia-GPLv3-blue?style=for-the-badge)
 ![Plataforma](https://img.shields.io/badge/Plataforma-Windows_x64-black?style=for-the-badge&logo=windows)
 ![Minecraft](https://img.shields.io/badge/Minecraft-Mojang_API-red?style=for-the-badge&logo=mojang)
 
@@ -113,6 +113,6 @@ mcrcon/
 
 ## 📄 Licencia
 
-Este proyecto está bajo la Licencia **MIT**. Consulta el archivo [LICENSE](LICENSE) para más información.
+Este proyecto está bajo la Licencia **GNU General Public License v3.0 (GPLv3)**. Consulta el archivo [LICENSE](LICENSE) para más información. Todos los derivados y modificaciones deben permanecer como código abierto bajo esta misma licencia.
 
 *Minecraft es una marca registrada de Mojang Synergies AB / Microsoft. Este proyecto es una herramienta independiente y no está afiliado ni respaldado por Mojang o Microsoft.*

@@ -19,8 +19,8 @@
     "electron",
     "admin-tool"
   ],
-  "author": "",
-  "license": "MIT",
+  "author": "rolea82",
+  "license": "GPL-3.0-or-later",
   "dependencies": {
     "clsx": "^2.1.1",
     "lucide-react": "^1.16.0",
