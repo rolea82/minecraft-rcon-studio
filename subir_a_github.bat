@@ -8,7 +8,7 @@ echo.
 echo Si aparece la ventana de Git, haz clic en "Sign in with your browser".
 echo.
 
-git push -u origin main
+git push -u origin main --tags
 
 echo.
 if %ERRORLEVEL% equ 0 (
