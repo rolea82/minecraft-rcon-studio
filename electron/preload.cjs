@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Version 2: Official Server Installer & Manager
   getMinecraftVersions: () => ipcRenderer.invoke('installer:getVersions'),
+  getBedrockVersions: () => ipcRenderer.invoke('installer:getBedrockVersions'),
   getBaseDir: () => ipcRenderer.invoke('installer:getBaseDir'),
   selectFolder: () => ipcRenderer.invoke('installer:selectFolder'),
   downloadAndSetupServer: (options) => ipcRenderer.invoke('installer:downloadAndSetup', options),
@@ -27,6 +28,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getRunningServers: () => ipcRenderer.invoke('installer:getRunningServers'),
   listLocalServers: () => ipcRenderer.invoke('installer:listLocalServers'),
   toggleOnlineMode: (folderPath) => ipcRenderer.invoke('installer:toggleOnlineMode', folderPath),
+  updateServerPorts: (data) => ipcRenderer.invoke('installer:updateServerPorts', data),
+  deleteServer: (folderPath) => ipcRenderer.invoke('installer:deleteServer', folderPath),
+  createBackup: (folderPath) => ipcRenderer.invoke('installer:createBackup', folderPath),
+  listBackups: () => ipcRenderer.invoke('installer:listBackups'),
+  selectBackupFile: () => ipcRenderer.invoke('installer:selectBackupFile'),
+  restoreBackup: (options) => ipcRenderer.invoke('installer:restoreBackup', options),
   
   onDownloadProgress: (callback) => {
     const subscription = (event, data) => callback(data);
@@ -46,6 +53,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('server:log', subscription);
   },
   
+  // Version 3: Local Web Service & Mobile Control
+  getWebInfo: () => ipcRenderer.invoke('web:getInfo'),
+  getWebQrCode: () => ipcRenderer.invoke('web:getQrCode'),
+  startWebService: (config) => ipcRenderer.invoke('web:start', config),
+  stopWebService: () => ipcRenderer.invoke('web:stop'),
+  saveWebConfig: (config) => ipcRenderer.invoke('web:saveConfig', config),
+
   // Window & Tray controls
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   minimizeToTray: () => ipcRenderer.send('window:minimizeToTray'),

@@ -16,11 +16,13 @@ import {
   Lock, 
   Unlock,
   Send,
-  MessageSquare
+  MessageSquare,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 
 export default function PlayersTab({ onSendCommand, isConnected }) {
-  const [players, setPlayers] = useState(['Alex', 'Steve']);
+  const [players, setPlayers] = useState([]);
   const [targetPlayer, setTargetPlayer] = useState('');
   const [kickReason, setKickReason] = useState('Expulsado por el administrador');
   const [banReason, setBanReason] = useState('Baneado del servidor');
@@ -29,6 +31,7 @@ export default function PlayersTab({ onSendCommand, isConnected }) {
   const [whitelistEnabled, setWhitelistEnabled] = useState(false);
   const [isLoadingPlayers, setIsLoadingPlayers] = useState(false);
   const [whisperMsg, setWhisperMsg] = useState('');
+  const [statusMessage, setStatusMessage] = useState(null);
 
   // Fetch online players
   const fetchPlayers = async () => {
@@ -37,62 +40,115 @@ export default function PlayersTab({ onSendCommand, isConnected }) {
     try {
       const res = await onSendCommand('list');
       if (res) {
-        // e.g.: "There are 2 of 20 players online: Alex, Steve"
-        // or "Hay 2 de 20 jugadores conectados:\nAlex, Steve"
-        const parts = res.split(':');
-        if (parts.length > 1) {
-          const namesStr = parts.slice(1).join(':').trim();
-          const parsed = namesStr
-            .split(',')
-            .map((n) => n.trim().replace(/^§[0-9a-fk-or]/gi, ''))
-            .filter((n) => n.length > 0 && !n.includes('online') && !n.includes('conectados'));
-          setPlayers(parsed);
+        // Strip all Minecraft formatting/color codes (§a, §f, §r, etc.)
+        const clean = res.replace(/§[0-9a-fk-or]/gi, '').trim();
+
+        // Check if 0 players
+        if (
+          clean.includes('There are 0') ||
+          clean.includes('Hay 0 ') ||
+          clean.toLowerCase().includes('no players online') ||
+          clean.toLowerCase().includes('no hay jugadores')
+        ) {
+          setPlayers([]);
+        } else {
+          // Typically: "... online: Player1, Player2" or "conectados:\nPlayer1, Player2"
+          const colonIdx = clean.indexOf(':');
+          if (colonIdx !== -1) {
+            const namesStr = clean.slice(colonIdx + 1).trim();
+            if (!namesStr) {
+              setPlayers([]);
+            } else {
+              const parsed = namesStr
+                .split(/[,\n]/)
+                .map((n) => n.trim())
+                .filter((n) => n.length > 0 && !n.includes('online') && !n.includes('conectados') && !n.includes('players'));
+              setPlayers(parsed);
+            }
+          }
         }
       }
 
-      // Query whitelist status
+      // Query whitelist status (transparently translated to allowlist on Bedrock)
       const wlRes = await onSendCommand('whitelist list');
       if (wlRes) {
-        const wlParts = wlRes.split(':');
-        if (wlParts.length > 1) {
-          const wlNames = wlParts.slice(1).join(':').trim().split(',').map((x) => x.trim()).filter(Boolean);
-          setWhitelist(wlNames);
+        const cleanWl = wlRes.replace(/§[0-9a-fk-or]/gi, '').trim();
+        const lowerWl = cleanWl.toLowerCase();
+        if (
+          lowerWl.includes('no whitelisted players') ||
+          lowerWl.includes('no allowlisted players') ||
+          lowerWl.includes('no hay jugadores en la lista') ||
+          cleanWl.includes('0 jugadores')
+        ) {
+          setWhitelist([]);
+        } else {
+          const colonIdx = cleanWl.indexOf(':');
+          if (colonIdx !== -1) {
+            const wlNames = cleanWl
+              .slice(colonIdx + 1)
+              .trim()
+              .split(/[,\n]/)
+              .map((x) => x.trim())
+              .filter((x) => x.length > 0 && !x.toLowerCase().includes('allowlist') && !x.toLowerCase().includes('players'));
+            setWhitelist(wlNames);
+          }
         }
       }
-    } catch (_) {}
-    finally {
+    } catch (_) {
+    } finally {
       setIsLoadingPlayers(false);
     }
   };
 
   useEffect(() => {
-    fetchPlayers();
+    if (isConnected) {
+      fetchPlayers();
+    } else {
+      setPlayers([]);
+      setWhitelist([]);
+      setTargetPlayer('');
+    }
   }, [isConnected]);
 
-  const handleAction = async (cmd) => {
+  const handleAction = async (cmd, customSuccessMsg = null) => {
     if (!isConnected) return;
-    await onSendCommand(cmd);
-    setTimeout(fetchPlayers, 600);
+    try {
+      const res = await onSendCommand(cmd);
+      setStatusMessage({
+        type: 'success',
+        text: customSuccessMsg || (typeof res === 'string' && res ? res : `Comando ejecutado: ${cmd}`),
+      });
+      setTimeout(() => setStatusMessage(null), 4000);
+      setTimeout(fetchPlayers, 600);
+      return res;
+    } catch (err) {
+      setStatusMessage({
+        type: 'error',
+        text: `Error al ejecutar "${cmd}": ${err.message}`,
+      });
+      setTimeout(() => setStatusMessage(null), 4000);
+    }
   };
 
   const handleWhitelistToggle = async (enable) => {
-    await handleAction(enable ? 'whitelist on' : 'whitelist off');
+    await handleAction(enable ? 'whitelist on' : 'whitelist off', enable ? 'Lista blanca activada' : 'Lista blanca desactivada');
     setWhitelistEnabled(enable);
   };
 
   const handleAddWhitelist = async (e) => {
     e.preventDefault();
-    if (!newWhitelistName.trim()) return;
-    await handleAction(`whitelist add ${newWhitelistName.trim()}`);
+    const name = newWhitelistName.trim();
+    if (!name) return;
+    await handleAction(`whitelist add ${name}`, `Se ha añadido a ${name} a la lista blanca`);
     setNewWhitelistName('');
   };
 
   const handleRemoveWhitelist = async (name) => {
-    await handleAction(`whitelist remove ${name}`);
+    await handleAction(`whitelist remove ${name}`, `Se ha eliminado a ${name} de la lista blanca`);
   };
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-6 pb-12 animate-fadeIn">
       {/* Top Banner & Player Search / Direct selection */}
       <div className="bg-mc-card border border-mc-border p-4 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4">
         <div>
@@ -117,6 +173,22 @@ export default function PlayersTab({ onSendCommand, isConnected }) {
         </div>
       </div>
 
+      {/* Visual Feedback Toast/Banner */}
+      {statusMessage && (
+        <div className={`p-3 rounded-xl border flex items-center gap-2.5 text-xs font-medium transition-all ${
+          statusMessage.type === 'success'
+            ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+            : 'bg-red-950/40 border-red-500/40 text-red-300'
+        }`}>
+          {statusMessage.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+          )}
+          <span>{statusMessage.text}</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column: Online Players list */}
         <div className="bg-mc-card border border-mc-border rounded-xl p-4 space-y-4">
@@ -127,10 +199,10 @@ export default function PlayersTab({ onSendCommand, isConnected }) {
             <span className="text-[11px] text-zinc-500">Haz clic para seleccionar</span>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-72 overflow-y-auto">
             {players.length === 0 ? (
               <div className="text-center py-8 text-zinc-500 text-xs bg-zinc-900/50 rounded-lg border border-dashed border-zinc-800">
-                No hay jugadores conectados en este momento.
+                {isConnected ? 'No hay jugadores conectados en este momento.' : 'Conéctate al servidor para ver los jugadores.'}
               </div>
             ) : (
               players.map((p) => {
@@ -179,7 +251,7 @@ export default function PlayersTab({ onSendCommand, isConnected }) {
             <div>
               <h4 className="font-semibold text-white text-sm">
                 Acciones para:{' '}
-                <span className="text-emerald-400 font-mono">
+                <span className="text-emerald-400 font-mono font-bold">
                   {targetPlayer ? targetPlayer : '(Selecciona o escribe un jugador)'}
                 </span>
               </h4>
@@ -194,28 +266,28 @@ export default function PlayersTab({ onSendCommand, isConnected }) {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <button
                   disabled={!targetPlayer || !isConnected}
-                  onClick={() => handleAction(`gamemode survival ${targetPlayer}`)}
+                  onClick={() => handleAction(`gamemode survival ${targetPlayer}`, `Modo de juego cambiado a Supervivencia para ${targetPlayer}`)}
                   className="px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-mc-border text-xs text-zinc-200 transition-colors disabled:opacity-40"
                 >
                   ⚔️ Supervivencia
                 </button>
                 <button
                   disabled={!targetPlayer || !isConnected}
-                  onClick={() => handleAction(`gamemode creative ${targetPlayer}`)}
+                  onClick={() => handleAction(`gamemode creative ${targetPlayer}`, `Modo de juego cambiado a Creativo para ${targetPlayer}`)}
                   className="px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-mc-border text-xs text-zinc-200 transition-colors disabled:opacity-40"
                 >
                   🧱 Creativo
                 </button>
                 <button
                   disabled={!targetPlayer || !isConnected}
-                  onClick={() => handleAction(`gamemode adventure ${targetPlayer}`)}
+                  onClick={() => handleAction(`gamemode adventure ${targetPlayer}`, `Modo de juego cambiado a Aventura para ${targetPlayer}`)}
                   className="px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-mc-border text-xs text-zinc-200 transition-colors disabled:opacity-40"
                 >
                   🗺️ Aventura
                 </button>
                 <button
                   disabled={!targetPlayer || !isConnected}
-                  onClick={() => handleAction(`gamemode spectator ${targetPlayer}`)}
+                  onClick={() => handleAction(`gamemode spectator ${targetPlayer}`, `Modo de juego cambiado a Espectador para ${targetPlayer}`)}
                   className="px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-mc-border text-xs text-zinc-200 transition-colors disabled:opacity-40"
                 >
                   👻 Espectador
@@ -229,9 +301,9 @@ export default function PlayersTab({ onSendCommand, isConnected }) {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <button
                   disabled={!targetPlayer || !isConnected}
-                  onClick={() => {
-                    handleAction(`effect give ${targetPlayer} instant_health 1 255`);
-                    handleAction(`effect give ${targetPlayer} saturation 1 255`);
+                  onClick={async () => {
+                    await handleAction(`effect give ${targetPlayer} instant_health 1 255`);
+                    await handleAction(`effect give ${targetPlayer} saturation 1 255`, `Curado y alimentado ${targetPlayer}`);
                   }}
                   className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-xs text-rose-300 transition-colors disabled:opacity-40"
                 >
@@ -240,7 +312,7 @@ export default function PlayersTab({ onSendCommand, isConnected }) {
                 </button>
                 <button
                   disabled={!targetPlayer || !isConnected}
-                  onClick={() => handleAction(`effect give ${targetPlayer} night_vision 600 0 true`)}
+                  onClick={() => handleAction(`effect give ${targetPlayer} night_vision 600 0 true`, `Efecto de Visión Nocturna aplicado a ${targetPlayer}`)}
                   className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-xs text-cyan-300 transition-colors disabled:opacity-40"
                 >
                   <Eye className="w-3.5 h-3.5 text-cyan-400" />
@@ -248,7 +320,7 @@ export default function PlayersTab({ onSendCommand, isConnected }) {
                 </button>
                 <button
                   disabled={!targetPlayer || !isConnected}
-                  onClick={() => handleAction(`effect give ${targetPlayer} speed 300 1 true`)}
+                  onClick={() => handleAction(`effect give ${targetPlayer} speed 300 1 true`, `Efecto de Velocidad II aplicado a ${targetPlayer}`)}
                   className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-xs text-amber-300 transition-colors disabled:opacity-40"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -256,7 +328,7 @@ export default function PlayersTab({ onSendCommand, isConnected }) {
                 </button>
                 <button
                   disabled={!targetPlayer || !isConnected}
-                  onClick={() => handleAction(`effect clear ${targetPlayer}`)}
+                  onClick={() => handleAction(`effect clear ${targetPlayer}`, `Efectos eliminados de ${targetPlayer}`)}
                   className="px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-mc-border text-xs text-zinc-300 transition-colors disabled:opacity-40"
                 >
                   Limpiar Efectos
@@ -270,7 +342,7 @@ export default function PlayersTab({ onSendCommand, isConnected }) {
               <div className="flex gap-2">
                 <button
                   disabled={!targetPlayer || !isConnected}
-                  onClick={() => handleAction(`op ${targetPlayer}`)}
+                  onClick={() => handleAction(`op ${targetPlayer}`, `Permisos de Operador (OP) concedidos a ${targetPlayer}`)}
                   className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-xs text-emerald-300 transition-colors disabled:opacity-40"
                 >
                   <Shield className="w-3.5 h-3.5 text-emerald-400" />
@@ -278,7 +350,7 @@ export default function PlayersTab({ onSendCommand, isConnected }) {
                 </button>
                 <button
                   disabled={!targetPlayer || !isConnected}
-                  onClick={() => handleAction(`deop ${targetPlayer}`)}
+                  onClick={() => handleAction(`deop ${targetPlayer}`, `Permisos de Operador retirados a ${targetPlayer}`)}
                   className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-mc-border text-xs text-zinc-300 transition-colors disabled:opacity-40"
                 >
                   <ShieldAlert className="w-3.5 h-3.5 text-zinc-500" />
@@ -300,12 +372,12 @@ export default function PlayersTab({ onSendCommand, isConnected }) {
                   onChange={(e) => setWhisperMsg(e.target.value)}
                   placeholder="Mensaje privado al jugador..."
                   disabled={!targetPlayer || !isConnected}
-                  className="flex-1 bg-zinc-900 border border-mc-border rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 disabled:opacity-40"
+                  className="flex-1 bg-zinc-900 border border-mc-border rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 disabled:opacity-40 font-mono"
                 />
                 <button
                   disabled={!targetPlayer || !isConnected || !whisperMsg.trim()}
                   onClick={() => {
-                    handleAction(`tell ${targetPlayer} [Consola]: ${whisperMsg}`);
+                    handleAction(`tell ${targetPlayer} [Admin]: ${whisperMsg}`, `Mensaje enviado a ${targetPlayer}`);
                     setWhisperMsg('');
                   }}
                   className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors disabled:opacity-40 flex items-center gap-1"
@@ -334,7 +406,10 @@ export default function PlayersTab({ onSendCommand, isConnected }) {
                   />
                   <button
                     disabled={!targetPlayer || !isConnected}
-                    onClick={() => handleAction(`kick ${targetPlayer} ${kickReason}`)}
+                    onClick={async () => {
+                      await handleAction(`kick ${targetPlayer} ${kickReason}`, `Expulsado ${targetPlayer}: ${kickReason}`);
+                      setTargetPlayer('');
+                    }}
                     className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-red-600/30 hover:bg-red-600/50 text-red-200 border border-red-500/40 text-xs font-medium transition-colors disabled:opacity-40"
                   >
                     <UserMinus className="w-3.5 h-3.5" />
@@ -353,7 +428,10 @@ export default function PlayersTab({ onSendCommand, isConnected }) {
                   />
                   <button
                     disabled={!targetPlayer || !isConnected}
-                    onClick={() => handleAction(`ban ${targetPlayer} ${banReason}`)}
+                    onClick={async () => {
+                      await handleAction(`ban ${targetPlayer} ${banReason}`, `Baneado ${targetPlayer}: ${banReason}`);
+                      setTargetPlayer('');
+                    }}
                     className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-red-700 hover:bg-red-600 text-white text-xs font-medium transition-colors disabled:opacity-40 shadow"
                   >
                     <UserX className="w-3.5 h-3.5" />
@@ -396,7 +474,7 @@ export default function PlayersTab({ onSendCommand, isConnected }) {
             </button>
             <button
               disabled={!isConnected}
-              onClick={() => handleAction('whitelist reload')}
+              onClick={() => handleAction('whitelist reload', 'Lista blanca recargada')}
               className="p-1.5 rounded-lg text-zinc-400 hover:text-white bg-zinc-800 transition-colors disabled:opacity-40"
               title="Recargar archivo whitelist.json"
             >

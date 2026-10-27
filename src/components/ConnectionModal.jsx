@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Server, Key, Hash, HelpCircle, Check, Copy, AlertTriangle, ShieldCheck, Play } from 'lucide-react';
+import { X, Server, Key, Hash, HelpCircle, Check, Copy, AlertTriangle, ShieldCheck, Play, Wifi } from 'lucide-react';
 
 export default function ConnectionModal({
   isOpen,
@@ -12,32 +12,62 @@ export default function ConnectionModal({
   const [host, setHost] = useState('127.0.0.1');
   const [port, setPort] = useState('25575');
   const [password, setPassword] = useState('1234');
+  const [serverType, setServerType] = useState('auto'); // 'auto' | 'java' | 'bedrock'
   const [showPassword, setShowPassword] = useState(false);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('connect'); // 'connect' | 'guide'
+  const [runningServers, setRunningServers] = useState([]);
 
   useEffect(() => {
-    const savedConfig = localStorage.getItem('mcrcon_config');
-    if (savedConfig) {
-      try {
-        const parsed = JSON.parse(savedConfig);
-        if (parsed.host) setHost(parsed.host);
-        if (parsed.port) setPort(parsed.port);
-        if (parsed.password) setPassword(parsed.password);
-      } catch (_) {}
+    if (isOpen && window.electronAPI?.getRunningServers) {
+      window.electronAPI.getRunningServers().then((list) => {
+        setRunningServers(list || []);
+      }).catch(() => {});
     }
+  }, [isOpen]);
+
+  useEffect(() => {
+    async function loadSavedConfig() {
+      if (window.electronAPI?.getSettings) {
+        try {
+          const s = await window.electronAPI.getSettings();
+          if (s?.lastConnection) {
+            if (s.lastConnection.host) setHost(s.lastConnection.host);
+            if (s.lastConnection.port) setPort(s.lastConnection.port);
+            if (s.lastConnection.password) setPassword(s.lastConnection.password);
+            if (s.lastConnection.serverType) setServerType(s.lastConnection.serverType);
+            return;
+          }
+        } catch (_) {}
+      }
+      const savedConfig = localStorage.getItem('mcrcon_config');
+      if (savedConfig) {
+        try {
+          const parsed = JSON.parse(savedConfig);
+          if (parsed.host) setHost(parsed.host);
+          if (parsed.port) setPort(parsed.port);
+          if (parsed.password) setPassword(parsed.password);
+          if (parsed.serverType) setServerType(parsed.serverType);
+        } catch (_) {}
+      }
+    }
+    loadSavedConfig();
   }, []);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    localStorage.setItem('mcrcon_config', JSON.stringify({ host, port, password }));
-    onConnect({ host, port, password });
+    const connData = { host, port, password, serverType };
+    if (window.electronAPI?.saveSettings) {
+      window.electronAPI.saveSettings({ lastConnection: connData });
+    }
+    localStorage.setItem('mcrcon_config', JSON.stringify(connData));
+    onConnect(connData);
   };
 
   const handleSimulateClick = () => {
-    onSimulate();
+    onSimulate(serverType);
     onClose();
   };
 
@@ -102,7 +132,38 @@ broadcast-rcon-to-ops=false`;
         {/* Body */}
         <div className="p-6 overflow-y-auto space-y-4">
           {activeTab === 'connect' ? (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-4">
+              {runningServers.length > 0 && (
+                <div className="p-3.5 rounded-xl bg-emerald-950/30 border border-emerald-500/30">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400 mb-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    Servidor local en ejecución detectado:
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {runningServers.map((srv) => (
+                      <button
+                        key={srv.folderPath}
+                        type="button"
+                        onClick={() => {
+                          onConnect({
+                            host: '127.0.0.1',
+                            port: 25575,
+                            password: '',
+                            isLocal: true,
+                            folderPath: srv.folderPath,
+                          });
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow transition-all"
+                      >
+                        <Wifi className="w-3.5 h-3.5" />
+                        Conectar a {srv.name} (Consola Directa)
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-4">
               {currentStatus.error && (
                 <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-start gap-2.5 text-xs text-red-300">
                   <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
@@ -173,6 +234,25 @@ broadcast-rcon-to-ops=false`;
                 <span className="text-[11px] text-zinc-500">Se guarda localmente de forma privada en tu equipo.</span>
               </div>
 
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
+                  <Server className="w-3.5 h-3.5 text-emerald-400" />
+                  Edición del Servidor (Detección de comandos)
+                </label>
+                <select
+                  value={serverType}
+                  onChange={(e) => setServerType(e.target.value)}
+                  className="w-full bg-zinc-900 border border-mc-border rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                >
+                  <option value="auto">Auto-detectar (Recomendado - Java o Bedrock)</option>
+                  <option value="java">Java Edition (Comandos estándar)</option>
+                  <option value="bedrock">Bedrock Edition (Traducción BDS activa)</option>
+                </select>
+                <span className="text-[11px] text-zinc-500">
+                  En Auto-detectar, la app reconocerá si es Java o Bedrock y adaptará los comandos transparentemente.
+                </span>
+              </div>
+
               <div className="pt-2 flex items-center justify-between gap-3">
                 <button
                   type="button"
@@ -211,7 +291,8 @@ broadcast-rcon-to-ops=false`;
                 </div>
               </div>
             </form>
-          ) : (
+          </div>
+        ) : (
             <div className="space-y-4 text-xs text-zinc-300 leading-relaxed">
               <p>
                 Para permitir que cualquier aplicación interactúe con la consola de tu servidor de Minecraft, debes habilitar RCON en el archivo <code className="bg-zinc-800 text-emerald-400 px-1 py-0.5 rounded font-mono">server.properties</code> de la carpeta de tu servidor.

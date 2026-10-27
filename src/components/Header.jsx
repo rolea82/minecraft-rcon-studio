@@ -15,9 +15,10 @@ import {
   RefreshCw,
   Download,
   Settings,
-  Minimize2
+  Minimize2,
+  Smartphone,
+  Lock
 } from 'lucide-react';
-import SettingsModal from './SettingsModal';
 
 export default function Header({ 
   activeTab, 
@@ -26,10 +27,9 @@ export default function Header({
   onOpenConnectModal,
   onDisconnect,
   onToggleSimulated,
-  onOpenQuickGuide
+  onOpenQuickGuide,
+  onOpenSettings
 }) {
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
   const handleMinimizeToTray = () => {
     if (window.electronAPI?.minimizeToTray) {
       window.electronAPI.minimizeToTray();
@@ -37,7 +37,8 @@ export default function Header({
   };
 
   const tabs = [
-    { id: 'installer', label: 'Descargar Servidor', icon: Download, isNew: true },
+    { id: 'web', label: 'Servicio Web & Móvil', icon: Smartphone },
+    { id: 'installer', label: 'Servidor', icon: Download },
     { id: 'console', label: 'Consola', icon: Terminal },
     { id: 'gamerules', label: 'Reglas de Juego', icon: Sliders },
     { id: 'players', label: 'Jugadores & Whitelist', icon: Users },
@@ -58,10 +59,14 @@ export default function Header({
             <div className="flex items-center gap-2">
               <h1 className="font-bold text-lg text-white tracking-wide">Minecraft RCON Studio</h1>
               <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
-                v2.0
+                v3.0{window.electronAPI?.isWebBridge ? ' Web' : ''}
               </span>
             </div>
-            <p className="text-xs text-zinc-400">Panel de control, instalador oficial y optimizador</p>
+            <p className="text-xs text-zinc-400">
+              {window.electronAPI?.isWebBridge 
+                ? 'Panel de control remoto conectado en red local' 
+                : 'Panel de control, servicios web, control remoto e instalador'}
+            </p>
           </div>
         </div>
 
@@ -73,11 +78,26 @@ export default function Header({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
               </span>
-              <div className="text-xs">
+              <div className="text-xs flex items-center">
                 <span className="text-zinc-400">Estado: </span>
-                <span className="text-emerald-400 font-semibold">
-                  {connectionStatus.isSimulated ? 'Modo Simulado' : 'Conectado'}
+                <span className="text-emerald-400 font-semibold ml-1">
+                  {connectionStatus.isSimulated ? 'Modo Simulado' : connectionStatus.isLocalDirect ? 'Consola Directa' : 'Conectado'}
                 </span>
+                {connectionStatus.serverType === 'bedrock' ? (
+                  <span
+                    className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1 shadow-sm"
+                    title="Servidor detectado: Minecraft Bedrock Edition (Traducción transparente activa)"
+                  >
+                    <span>🧱</span> Bedrock
+                  </span>
+                ) : (
+                  <span
+                    className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1 shadow-sm"
+                    title="Servidor detectado: Minecraft Java Edition"
+                  >
+                    <span>☕</span> Java
+                  </span>
+                )}
                 {!connectionStatus.isSimulated && (
                   <span className="text-zinc-500 ml-1.5 font-mono">
                     ({connectionStatus.latencyMs}ms)
@@ -122,21 +142,40 @@ export default function Header({
             </button>
           )}
 
-          <button
-            onClick={handleMinimizeToTray}
-            className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
-            title="Minimizar a la bandeja del sistema (System Tray)"
-          >
-            <Minimize2 className="w-4 h-4" />
-          </button>
+          {window.electronAPI?.isWebBridge && (
+            <button
+              onClick={() => {
+                if (window.electronAPI?.logout) {
+                  window.electronAPI.logout();
+                }
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-amber-400 bg-amber-950/40 border border-amber-500/30 hover:bg-amber-900/50 transition-colors"
+              title="Cerrar sesión remota y bloquear panel"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Bloquear</span>
+            </button>
+          )}
 
-          <button
-            onClick={() => setIsSettingsOpen(true)}
-            className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
-            title="Configuración de la aplicación (Bandeja y comportamiento al cerrar)"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
+          {!window.electronAPI?.isWebBridge && (
+            <button
+              onClick={handleMinimizeToTray}
+              className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
+              title="Minimizar a la bandeja del sistema (System Tray)"
+            >
+              <Minimize2 className="w-4 h-4" />
+            </button>
+          )}
+
+          {!window.electronAPI?.isWebBridge && (
+            <button
+              onClick={onOpenSettings}
+              className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
+              title="Configuración de la aplicación (Bandeja y comportamiento al cerrar)"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          )}
 
           <button
             onClick={onOpenQuickGuide}
@@ -147,11 +186,6 @@ export default function Header({
           </button>
         </div>
       </div>
-
-      <SettingsModal 
-        isOpen={isSettingsOpen} 
-        onClose={() => setIsSettingsOpen(false)} 
-      />
 
       {/* Navigation Tabs */}
       <div className="flex items-center px-6 gap-2 overflow-x-auto">
@@ -170,11 +204,6 @@ export default function Header({
             >
               <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-400' : 'text-zinc-500'}`} />
               {tab.label}
-              {tab.isNew && (
-                <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold uppercase tracking-wider border border-emerald-500/30">
-                  Nuevo
-                </span>
-              )}
             </button>
           );
         })}

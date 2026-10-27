@@ -26,21 +26,31 @@ export default function QuickActionsTab({ onSendCommand, isConnected }) {
   const [showStopConfirm, setShowStopConfirm] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem('mcrcon_custom_macros');
-    if (saved) {
-      try {
-        setCustomMacros(JSON.parse(saved));
-      } catch (_) {}
-    } else {
-      // Defaults
+    async function loadMacros() {
       const defaults = [
         { id: '1', name: 'Dar Manzanas Doradas a Todos', cmd: 'give @a golden_apple 5' },
         { id: '2', name: 'Curar a Todos los Jugadores', cmd: 'effect give @a instant_health 1 255' },
         { id: '3', name: 'Subir Nivel de XP a Todos', cmd: 'xp add @a 5 levels' },
       ];
+      if (window.electronAPI?.getSettings) {
+        try {
+          const s = await window.electronAPI.getSettings();
+          if (Array.isArray(s?.customMacros) && s.customMacros.length > 0) {
+            setCustomMacros(s.customMacros);
+            return;
+          }
+        } catch (_) {}
+      }
+      const saved = localStorage.getItem('mcrcon_custom_macros');
+      if (saved) {
+        try {
+          setCustomMacros(JSON.parse(saved));
+          return;
+        } catch (_) {}
+      }
       setCustomMacros(defaults);
-      localStorage.setItem('mcrcon_custom_macros', JSON.stringify(defaults));
     }
+    loadMacros();
   }, []);
 
   const triggerCommand = async (cmd, label = null) => {
@@ -85,6 +95,9 @@ export default function QuickActionsTab({ onSendCommand, isConnected }) {
 
     const updated = [...customMacros, newMacro];
     setCustomMacros(updated);
+    if (window.electronAPI?.saveSettings) {
+      window.electronAPI.saveSettings({ customMacros: updated });
+    }
     localStorage.setItem('mcrcon_custom_macros', JSON.stringify(updated));
     setNewMacroName('');
     setNewMacroCmd('');
@@ -94,6 +107,9 @@ export default function QuickActionsTab({ onSendCommand, isConnected }) {
   const handleDeleteMacro = (id) => {
     const updated = customMacros.filter((m) => m.id !== id);
     setCustomMacros(updated);
+    if (window.electronAPI?.saveSettings) {
+      window.electronAPI.saveSettings({ customMacros: updated });
+    }
     localStorage.setItem('mcrcon_custom_macros', JSON.stringify(updated));
   };
 

@@ -1,6 +1,6 @@
 {
   "name": "mcrcon-dashboard",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Panel de control visual, instalador oficial y optimizador para servidores Minecraft mediante RCON",
   "main": "electron/main.cjs",
   "type": "module",
@@ -23,12 +23,16 @@
   "author": "rolea82",
   "license": "GPL-3.0-or-later",
   "dependencies": {
+    "archiver": "^8.0.0",
     "clsx": "^2.1.1",
+    "extract-zip": "^2.0.1",
     "lucide-react": "^1.16.0",
+    "qrcode": "^1.5.4",
     "rcon-client": "^4.2.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwind-merge": "^3.0.2"
+    "tailwind-merge": "^3.0.2",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

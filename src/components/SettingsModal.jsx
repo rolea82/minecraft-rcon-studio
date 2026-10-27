@@ -13,12 +13,16 @@ import {
 
 export default function SettingsModal({ isOpen, onClose }) {
   const [closeAction, setCloseAction] = useState('ask'); // 'ask' | 'minimize' | 'quit'
+  const [openAtLogin, setOpenAtLogin] = useState(false);
+  const [startMinimized, setStartMinimized] = useState(true);
   const [isSaved, setIsSaved] = useState(false);
 
   useEffect(() => {
     if (isOpen && window.electronAPI?.getSettings) {
       window.electronAPI.getSettings().then((s) => {
         if (s?.closeAction) setCloseAction(s.closeAction);
+        if (s?.openAtLogin !== undefined) setOpenAtLogin(Boolean(s.openAtLogin));
+        if (s?.startMinimized !== undefined) setStartMinimized(Boolean(s.startMinimized));
       });
     }
   }, [isOpen]);
@@ -28,7 +32,25 @@ export default function SettingsModal({ isOpen, onClose }) {
   const handleSaveAction = async (val) => {
     setCloseAction(val);
     if (window.electronAPI?.saveSettings) {
-      await window.electronAPI.saveSettings({ closeAction: val });
+      await window.electronAPI.saveSettings({ closeAction: val, openAtLogin, startMinimized });
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 2000);
+    }
+  };
+
+  const handleToggleOpenAtLogin = async (checked) => {
+    setOpenAtLogin(checked);
+    if (window.electronAPI?.saveSettings) {
+      await window.electronAPI.saveSettings({ closeAction, openAtLogin: checked, startMinimized });
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 2000);
+    }
+  };
+
+  const handleToggleStartMinimized = async (checked) => {
+    setStartMinimized(checked);
+    if (window.electronAPI?.saveSettings) {
+      await window.electronAPI.saveSettings({ closeAction, openAtLogin, startMinimized: checked });
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 2000);
     }
@@ -42,10 +64,10 @@ export default function SettingsModal({ isOpen, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in select-none">
-      <div className="bg-mc-card border border-mc-border rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-[100] overflow-y-auto p-4 sm:p-6 bg-black/75 backdrop-blur-sm animate-fade-in select-none flex items-center justify-center">
+      <div className="bg-mc-card border border-mc-border rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col my-auto max-h-[92vh]">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-mc-border bg-zinc-900/60">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-mc-border bg-zinc-900/60 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
               <Settings className="w-4 h-4" />
@@ -64,7 +86,7 @@ export default function SettingsModal({ isOpen, onClose }) {
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-5">
+        <div className="p-6 space-y-5 overflow-y-auto flex-1">
           {/* Section: Comportamiento al Cerrar */}
           <div className="space-y-3">
             <label className="text-xs font-bold text-zinc-200 flex items-center justify-between">
@@ -148,8 +170,49 @@ export default function SettingsModal({ isOpen, onClose }) {
             </div>
           </div>
 
+          {/* Section: Arranque con Windows */}
+          <div className="space-y-3 pt-3 border-t border-mc-border">
+            <label className="text-xs font-bold text-zinc-200 block">
+              Arranque del Sistema Operativo:
+            </label>
+
+            <div className="space-y-2">
+              <label className="flex items-start gap-3 p-3 rounded-xl bg-zinc-900/60 border border-mc-border cursor-pointer hover:border-zinc-700 transition-all">
+                <input
+                  type="checkbox"
+                  checked={openAtLogin}
+                  onChange={(e) => handleToggleOpenAtLogin(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 accent-emerald-500 cursor-pointer shrink-0"
+                />
+                <div>
+                  <div className="text-xs font-semibold text-zinc-200">Iniciar con Windows</div>
+                  <div className="text-[11px] text-zinc-400 mt-0.5">
+                    Arranca automáticamente Minecraft RCON Studio al iniciar sesión en el ordenador.
+                  </div>
+                </div>
+              </label>
+
+              {openAtLogin && (
+                <label className="flex items-start gap-3 p-2.5 ml-4 rounded-xl bg-zinc-900/40 border border-zinc-800 cursor-pointer hover:border-zinc-700 transition-all animate-fadeIn">
+                  <input
+                    type="checkbox"
+                    checked={startMinimized}
+                    onChange={(e) => handleToggleStartMinimized(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 accent-emerald-500 cursor-pointer shrink-0"
+                  />
+                  <div>
+                    <div className="text-xs font-semibold text-zinc-300">Arrancar minimizado en la bandeja</div>
+                    <div className="text-[10px] text-zinc-500 mt-0.5">
+                      Inicia silenciosamente junto al reloj sin abrir una ventana en pantalla.
+                    </div>
+                  </div>
+                </label>
+              )}
+            </div>
+          </div>
+
           {/* Tray Quick Action */}
-          <div className="pt-2 border-t border-mc-border flex items-center justify-between">
+          <div className="pt-3 border-t border-mc-border flex items-center justify-between shrink-0">
             <button
               type="button"
               onClick={handleMinimizeToTray}
