@@ -74,7 +74,6 @@ function githubApiRequest(method, endpoint, token, body = null, isUpload = false
 // Upload file stream to GitHub release asset
 function uploadAssetFile(uploadUrlTemplate, filePath, fileName, contentType, token) {
   return new Promise((resolve, reject) => {
-    // uploadUrlTemplate format: "https://uploads.github.com/repos/owner/repo/releases/id/assets{?name,label}"
     const cleanUrl = uploadUrlTemplate.replace(/\{.*\}/, '');
     const url = new URL(`${cleanUrl}?name=${encodeURIComponent(fileName)}`);
     const fileStats = fs.statSync(filePath);
@@ -146,27 +145,7 @@ async function main() {
   const releaseBodies = {
     'v3.0.0': {
       name: 'Minecraft RCON Studio v3.0.0 - Bedrock Edition, Consola Directa y Servidor Web LAN',
-      body: `## ⛏️ Minecraft RCON Studio & Server Manager v3.0.0
-
-### ✨ Novedades Principales en la Versión 3.0:
-* **🧱 Soporte Completo para Minecraft Bedrock Edition (BDS):**
-  * Descarga e instalación automatizada de binarios oficiales BDS de Mojang.
-  * **Bedrock RCON TCP Bridge:** Servidor puente interno que añade soporte de protocolo Source RCON a Bedrock (puerto 25575 por defecto).
-  * **Modo Consola Directa:** Auto-conexión instantánea de latencia 1 ms con captura bidireccional de respuestas (\`stdin\` ↔ \`stdout\`).
-  * **Traducción Transparente:** Compatibilidad automática de comandos entre Java y Bedrock (\`effect\`, \`allowlist\`/\`whitelist\`, \`gamerule\` en minúsculas).
-  * Nuevo botón inteligente **\`Iniciar y Conectar\`** para arrancar el servidor y abrir la consola con un solo clic.
-* **🌐 Servidor Web LAN y Control Móvil:**
-  * Controla tu servidor de Minecraft desde cualquier smartphone, tablet u ordenador de tu red local mediante interfaz web.
-  * Generador de código QR y autenticación mediante código PIN personalizable.
-* **💾 Copias de Seguridad (Backups):**
-  * Generación de copias comprimidas \`.zip\` en la carpeta \`backups\` y restauración con 1 clic.
-* **🎨 Iconos y Mejoras de Interfaz:**
-  * Nuevo icono oficial del pico de Minecraft en ventana, barra de tareas y bandeja del sistema (System Tray).
-  * Ventana de configuración centrada y panel de novedades en el primer inicio.
-
-### 📦 Descargas Disponibles para Windows:
-* **\`Minecraft RCON Studio 3.0.0.exe\`**: Ejecutable autónomo y portable. No requiere instalación.
-* **\`Minecraft-RCON-Studio-v3.0.0-Windows.zip\`**: Paquete comprimido portable listo para descomprimir y usar.`,
+      body: `## ⛏️ Minecraft RCON Studio & Server Manager v3.0.0\n\n### ✨ Novedades Principales en la Versión 3.0:\n* **🧱 Soporte Completo para Minecraft Bedrock Edition (BDS):**\n  * Descarga e instalación automatizada de binarios oficiales BDS de Mojang.\n  * **Bedrock RCON TCP Bridge:** Servidor puente interno que añade soporte de protocolo Source RCON a Bedrock (puerto 25575 por defecto).\n  * **Modo Consola Directa:** Auto-conexión instantánea de latencia 1 ms con captura bidireccional de respuestas (\`stdin\` ↔ \`stdout\`).\n  * **Traducción Transparente:** Compatibilidad automática de comandos entre Java y Bedrock (\`effect\`, \`allowlist\`/\`whitelist\`, \`gamerule\` en minúsculas).\n  * Nuevo botón inteligente **\`Iniciar y Conectar\`** para arrancar el servidor y abrir la consola con un solo clic.\n* **🌐 Servidor Web LAN y Control Móvil:**\n  * Controla tu servidor de Minecraft desde cualquier smartphone, tablet u ordenador de tu red local mediante interfaz web.\n  * Generador de código QR y autenticación mediante código PIN personalizable.\n* **💾 Copias de Seguridad (Backups):**\n  * Generación de copias comprimidas \`.zip\` en la carpeta \`backups\` y restauración con 1 clic.\n* **🎨 Iconos y Mejoras de Interfaz:**\n  * Nuevo icono oficial del pico de Minecraft en ventana, barra de tareas y bandeja del sistema (System Tray).\n  * Ventana de configuración centrada y panel de novedades en el primer inicio.\n\n### 📦 Descargas Disponibles para Windows:\n* **\`Minecraft RCON Studio 3.0.0.exe\`**: Ejecutable autónomo y portable. No requiere instalación.\n* **\`Minecraft-RCON-Studio-v3.0.0-Windows.zip\`**: Paquete comprimido portable listo para descomprimir y usar.`,
       assets: [
         { path: path.join(__dirname, '../release/Minecraft-RCON-Studio-v3.0.0-Windows.zip'), name: 'Minecraft-RCON-Studio-v3.0.0-Windows.zip', type: 'application/zip' },
         { path: path.join(__dirname, '../release/Minecraft RCON Studio 3.0.0.exe'), name: 'Minecraft RCON Studio 3.0.0.exe', type: 'application/vnd.microsoft.portable-executable' },
@@ -178,6 +157,14 @@ async function main() {
       assets: [
         { path: path.join(__dirname, '../release/Minecraft-RCON-Studio-v2.0.0-Windows.zip'), name: 'Minecraft-RCON-Studio-v2.0.0-Windows.zip', type: 'application/zip' },
         { path: path.join(__dirname, '../release/Minecraft RCON Studio 2.0.0.exe'), name: 'Minecraft-RCON-Studio.exe', type: 'application/vnd.microsoft.portable-executable' },
+      ],
+    },
+    'v1.0.0': {
+      name: 'Minecraft RCON Studio v1.0.0',
+      body: `## ⛏️ Minecraft RCON Studio v1.0.0\n\n### ✨ Características de la Versión Inicial:\n* **📟 Consola RCON Interactiva:** Conexión por protocolo Source RCON a servidores de Minecraft para envío y recepción de comandos en tiempo real.\n* **👥 Control de Jugadores:** Visualización de jugadores conectados, expulsión (kick), baneo y permisos de operador.\n* **⚡ Reglas de Juego (Gamerules):** Consulta y modificación visual de parámetros del servidor sin necesidad de escribir comandos complejos.\n* **🌍 Clima y Tiempo:** Control básico de día/noche y clima despejado o lluvioso.\n\n### 📦 Descargas Disponibles para Windows:\n* **\`Minecraft RCON Studio 1.0.0.exe\`**: Ejecutable autónomo portable para Windows.\n* **\`Minecraft-RCON-Studio-v1.0.0-Windows.zip\`**: Paquete comprimido portable listo para descomprimir y usar.`,
+      assets: [
+        { path: path.join(__dirname, '../release/Minecraft-RCON-Studio-v1.0.0-Windows.zip'), name: 'Minecraft-RCON-Studio-v1.0.0-Windows.zip', type: 'application/zip' },
+        { path: path.join(__dirname, '../release/Minecraft RCON Studio 1.0.0.exe'), name: 'Minecraft RCON Studio 1.0.0.exe', type: 'application/vnd.microsoft.portable-executable' },
       ],
     },
   };
